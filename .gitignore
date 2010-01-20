@@ -1,0 +1,6 @@
+.project
+.settings/
+doc/
+ebin/
+logs
+erl_crash.dump
