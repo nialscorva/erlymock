@@ -14,8 +14,8 @@ start() ->
   cleanup(),
   Self=self(),
   F=fun() -> erlang:monitor(process,Self),
-                     program_mock([],[],[]) 
-            end,
+             program_mock([],[],[]) 
+    end,
   Pid=spawn(F),
   register(?MOCK_PID,Pid),
   Pid.

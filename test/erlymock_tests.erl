@@ -123,7 +123,6 @@ strict_not_called_test() ->
   erlymock:replay(),
   ?assertThrow({mock_failure, _}, erlymock:verify()).
 
-
 error_return_test() ->
   erlymock:start(),
   erlymock:strict(testmodule2, mockme1, [666], {error, end_of_times}),
@@ -145,48 +144,43 @@ exit_return_test() ->
   ?assertExit(end_of_times,testmodule2:mockme1(666)),
   erlymock:cleanup().
 
-test4() ->
+error_on_no_replay_test() ->
   erlymock:start(),
-  {error,_} = erlymock:verify().
+  ?assertThrow({mock_failure,_},erlymock:verify()).
 
-test4a() ->
+exit_on_bad_return_param_test() ->
   erlymock:start(),
-  {'EXIT',_} = (catch erlymock:strict(testmodule1, mockme1, [1,2], {hier_steht_was_falsches, xxx})).
+  ?assertError(_,erlymock:strict(testmodule1, mockme1, [1,2], {hier_steht_was_falsches, xxx})).
 
-test5() ->
+rec_msg_retval_test() ->
   erlymock:start(),
   erlymock:strict(testmodule1, mockme1, [1,2], {rec_msg, self()}),
   erlymock:replay(),
   TestPid = spawn(testmodule1,mockme1,[1,2]),
   TestPid ! test,
   receive
- test ->
+    test ->
      ok,
      erlymock:verify()
   after 1000 ->
-     error
+     ?assert(timed_out)
   end.
 
-test6() ->
+function_retval_test() ->
   erlymock:start(),
-  erlymock:o_o(testmodule1, mockme1, [1,2], {function, fun(X,Y) ->
-            X + Y
-           end}),
+  erlymock:o_o(testmodule1, mockme1, [1,2], {function, fun(X,Y) ->  X + Y end}),
   erlymock:replay(),
-  R = testmodule1:mockme1(1,2),
-  erlymock:verify(),
-  3 = R.
-
-test6a() ->
-  erlymock:start(),
-  erlymock:stub(testmodule1, mockme1, [1,2], {function, fun(_,_) ->
-            erlang:error(test)
-           end}),
-  erlymock:replay(),
-  {'EXIT',_} = (catch testmodule1:mockme1(1,2)),
+  ?assert(3 =:= testmodule1:mockme1(1,2)),
   erlymock:verify().
 
-test7() ->
+error_in_fun_retval_test() ->
+  erlymock:start(),
+  erlymock:stub(testmodule1, mockme1, [1,2], {function, fun(_,_) ->  erlang:error(test) end}),
+  erlymock:replay(),
+  ?assertError(_,testmodule1:mockme1(1,2)),
+  erlymock:verify().
+
+complex_function_retval_test() ->
   erlymock:start(),
   erlymock:expect(in_order, testmodule1, mockme1, 1,
   fun([{qXYZ, D, B, A}]) when A >= B andalso B >= D ->
@@ -197,14 +191,12 @@ test7() ->
   end}
         ),
   erlymock:replay(),
-  L = testmodule1:mockme1({qXYZ, 1,2,3}),
-  erlymock:verify(),
-  [2,1|3] = L.
+  ?assert([2,1|3] =:= testmodule1:mockme1({qXYZ, 1,2,3})),
+  erlymock:verify().
 
-test7a() ->
+error_in_complex_fun_retval_test() ->
   erlymock:start(),
   erlymock:expect(in_order, testmodule1, mockme1, 1,
-  %% hier fehlen die obligatorischen Klammern
   fun({qXYZ, D, B, A}) when A >= B andalso B >= D ->
    true
   end,
@@ -213,4 +205,4 @@ test7a() ->
   end}
         ),
   erlymock:replay(),
-  {'EXIT',_}= (catch testmodule1:mockme1({qXYZ, 1,2,3})).
+  ?assertError(_,testmodule1:mockme1({qXYZ, 1,2,3})).
