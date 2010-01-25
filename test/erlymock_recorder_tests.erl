@@ -47,7 +47,7 @@ bad_series_strict_test()->
   H4=erlymock_recorder:strict(H3,{mod,func3},[arg1],[{return,ok}]),
 
   {ok,H5} = erlymock_recorder:invoke(H4,{mod,func},[arg1]),
-  ?assertThrow({erlymock,no_match,_}, erlymock_recorder:invoke(H5,{mod,func3},[arg1])),
+  ?assertThrow({erlymock,unexpected_invocation,_}, erlymock_recorder:invoke(H5,{mod,func3},[arg1])),
   {ok,_H7} = erlymock_recorder:invoke(H5,{mod,func2},[arg1]).
 
 
