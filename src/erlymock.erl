@@ -12,7 +12,10 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 % public interface
--export([start/0,strict/3, o_o/3, stub/3,strict/4, o_o/4, stub/4, replay/0, verify/0, invocation_event/2]).
+-export([start/0,strict/3, o_o/3, stub/3,strict/4, o_o/4, stub/4, replay/0, verify/0]).
+
+% interfaces used by other mocking groups, not for consumption
+-export([dispatch/1, invocation_event/2]).
 
 -define(SERVER,?MODULE).
 
@@ -34,7 +37,7 @@ start() ->
 %% @end
 % --------------------------------------------------------------------
 strict(M,F,Args) when is_atom(M),is_atom(F),is_list(Args)->
-  dispatch(gen_server:call(?SERVER,{strict,M,F,Args,[{return,ok}]})).
+  strict(M,F,Args,[{return,ok}]).
 
 % --------------------------------------------------------------------
 %% @spec strict(Module::atom(), Function::atom(), Args::list(term()), Options::option_list()) -> ok
@@ -42,7 +45,7 @@ strict(M,F,Args) when is_atom(M),is_atom(F),is_list(Args)->
 %% @end
 % --------------------------------------------------------------------
 strict(M,F,Args, Options) when is_atom(M),is_atom(F),is_list(Args),is_list(Options)->
-  dispatch(gen_server:call(?SERVER,{strict,M,F,Args,Options})).
+  dispatch(gen_server:call(?SERVER,{strict,{M,F,length(Args)},Args,Options})).
 
 
 % --------------------------------------------------------------------
@@ -52,7 +55,7 @@ strict(M,F,Args, Options) when is_atom(M),is_atom(F),is_list(Args),is_list(Optio
 %% @end
 % --------------------------------------------------------------------
 o_o(M,F,Args) when is_atom(M),is_atom(F),is_list(Args)->
-  dispatch(stub(M,F,Args,[{return,ok}])).
+  stub(M,F,Args,[{return,ok}]).
 
 % --------------------------------------------------------------------
 %% @spec o_o(Module::atom(),Function::atom(),Args::list(term()),Options::option_list()) -> ok
@@ -61,7 +64,7 @@ o_o(M,F,Args) when is_atom(M),is_atom(F),is_list(Args)->
 %% @end
 % --------------------------------------------------------------------
 o_o(M,F,Args, Options) when is_atom(M),is_atom(F),is_list(Args),is_list(Options)->
-  dispatch(stub(M,F,Args,[{max_invocations,1},{min_invocations,1} | Options])).
+  stub(M,F,Args,[{max_invocations,1},{min_invocations,1} | Options]).
 
 
 % --------------------------------------------------------------------
@@ -70,7 +73,7 @@ o_o(M,F,Args, Options) when is_atom(M),is_atom(F),is_list(Args),is_list(Options)
 %% @end
 % --------------------------------------------------------------------
 stub(M,F,Args) when is_atom(M),is_atom(F),is_list(Args)->
-  dispatch(gen_server:call(?SERVER,{stub,M,F,Args,[{return,ok}]})).
+  stub(M,F,Args,[{return,ok}]).
 
 % --------------------------------------------------------------------
 %% @spec stub(Module::atom(),Function::atom(),Args::list(term()),Options::option_list()) -> ok
@@ -78,7 +81,7 @@ stub(M,F,Args) when is_atom(M),is_atom(F),is_list(Args)->
 %% @end
 % --------------------------------------------------------------------
 stub(M,F,Args, Options) when is_atom(M),is_atom(F),is_list(Args), is_list(Options)->
-  dispatch(gen_server:call(?SERVER,{stub,M,F,Args,Options})).
+  dispatch(gen_server:call(?SERVER,{stub,{M,F,length(Args)},Args,Options})).
 
 % --------------------------------------------------------------------
 %% @spec replay() -> ok
@@ -107,6 +110,13 @@ invocation_event(MFA,Args) when is_tuple(MFA), is_list(Args)->
   dispatch(gen_server:call(?SERVER,{invocation_event,MFA,Args})).
 
   
+% --------------------------------------------------------------------
+%% @spec dispatch(What) -> any()
+%% @private
+%% @doc Returns, throws, errors, etc based upon What.  Used internally
+%% for moving values onto the calling process's stack
+%% @end 
+% --------------------------------------------------------------------
 dispatch(What) ->  
   case What of
     {throw,T} -> throw(T);
@@ -116,6 +126,8 @@ dispatch(What) ->
     Any -> Any
   end.
 
+
+  
 % --------------------------------------------------------------------
 %% @spec init([]) ->
 %%          {ok, State}          |
@@ -142,22 +154,16 @@ init([]) ->
 %% @doc Handling call messages
 %% @end
 % --------------------------------------------------------------------
-handle_call({strict,M,F,Args,Options}, _From, #state{recorder=Rec,state=init}=State) ->
-  Rec2=erlymock_recorder:strict(Rec, {M,F,length(Args)}, Args, Options),
+handle_call({strict,Func,Args,Options}, _From, #state{recorder=Rec,state=init}=State) ->
+  Rec2=erlymock_recorder:strict(Rec, Func, Args, Options),
   {reply, ok, State#state{recorder=Rec2}};
-handle_call({strict,_M,_F,_Args,_Options}, _From, #state{state=S}=State) ->
+handle_call({strict,_F,_Args,_Options}, _From, #state{state=S}=State) ->
   {reply, {throw,{invalid_state,S}}, State};
 
-handle_call({o_o,M,F,Args,Options}, _From, #state{recorder=Rec,state=init}=State) ->
-  Rec2=erlymock_recorder:stub(Rec, {M,F,length(Args)}, Args, [{max_invocations,1} |Options]),
+handle_call({stub,Func,Args,Options}, _From, #state{recorder=Rec,state=init}=State) ->
+  Rec2=erlymock_recorder:stub(Rec, Func, Args, Options),
   {reply, ok, State#state{recorder=Rec2}};
-handle_call({o_o,_M,_F,_Args,_Options}, _From, #state{state=S}=State) ->
-  {reply, {throw,{invalid_state,S}}, State};
-
-handle_call({stub,M,F,Args,Options}, _From, #state{recorder=Rec,state=init}=State) ->
-  Rec2=erlymock_recorder:stub(Rec, {M,F,length(Args)}, Args, Options),
-  {reply, ok, State#state{recorder=Rec2}};
-handle_call({stub,_M,_F,_Args,_Options}, _From, #state{state=S}=State) ->
+handle_call({stub,_F,_Args,_Options}, _From, #state{state=S}=State) ->
   {reply, {throw,{invalid_state,S}}, State};
 
 handle_call({replay}, _From, #state{recorder=Rec,state=init}=State) ->
