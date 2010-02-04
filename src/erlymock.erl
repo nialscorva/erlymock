@@ -15,11 +15,11 @@
 -export([start/0,strict/3, o_o/3, stub/3,strict/4, o_o/4, stub/4, replay/0, verify/0]).
 
 % interfaces used by other mocking groups, not for consumption
--export([dispatch/1, invocation_event/2]).
+-export([dispatch/1, invocation_event/2,internal_strict/3,internal_stub/3, internal_invocation_event/2,internal_register/1]).
 
 -define(SERVER,?MODULE).
 
--record(state, {recorder, module_set,state=init}).
+-record(state, {recorder, module_set,state=init,listeners=[]}).
 
 % --------------------------------------------------------------------
 %% @spec start() -> {ok, Pid::pid()}
@@ -125,8 +125,18 @@ dispatch(What) ->
     Any -> Any
   end.
 
+internal_strict(Func,Args,Options) ->
+  dispatch(gen_server:call(?SERVER,{strict,Func,Args,Options})).
 
-  
+internal_stub(Func,Args,Options) ->
+  dispatch(gen_server:call(?SERVER,{stub,Func,Args,Options})).
+
+internal_invocation_event(Func,Args) ->
+  gen_server:call(?SERVER,{invocation_event,Func,Args}).
+
+internal_register(AssocPid) ->
+  gen_server:call(?SERVER,{register,AssocPid}).
+
 % --------------------------------------------------------------------
 %% @spec init([]) ->
 %%          {ok, State}          |
@@ -165,17 +175,25 @@ handle_call({stub,Func,Args,Options}, _From, #state{recorder=Rec,state=init}=Sta
 handle_call({stub,_F,_Args,_Options}, _From, #state{state=S}=State) ->
   {reply, {throw,{invalid_state,S}}, State};
 
-handle_call({replay}, _From, #state{recorder=Rec,state=init}=State) ->
+handle_call({replay}, _From, #state{listeners=Listeners,recorder=Rec,state=init}=State) ->
+  true=lists:all(fun(L) -> gen_server:call(L,{erlymock_state,replay}) end, Listeners),
   ModSet=make_mock_modules(Rec),
   {reply,ok,State#state{state=replay,module_set=ModSet}};
 handle_call({replay}, _From, #state{state=S}=State) ->
   {reply, {throw,{invalid_state,S}}, State};
 
 
-handle_call({verify}, _From, #state{recorder=Rec,state=replay}=State) ->
+handle_call({verify}, _From, #state{listeners=Listeners,recorder=Rec,state=replay}=State) ->
+  ListProblems = lists:foldl(
+                  fun(L,Acc) -> 
+                       case gen_server:call(L,{erlymock_state,verify}) of
+                         true -> Acc;
+                         Any -> [Any | Acc]
+                       end
+                  end, [], Listeners),
   case erlymock_recorder:validate_constraints(Rec) of
     [] -> {stop,normal,ok,State#state{state=done}};
-    Problems -> {stop,normal, {throw,{mock_failure,Problems}}, State}
+    Problems -> {stop,normal, {throw,{mock_failure,ListProblems ++ Problems}}, State}
   end;
 handle_call({verify}, _From, #state{state=S}=State) ->
   {stop, normal, {throw,{invalid_state,S}}, State};
@@ -183,16 +201,21 @@ handle_call({verify}, _From, #state{state=S}=State) ->
 handle_call({reset}, _From, State) ->
   {stop,normal,ok,State};
 
-handle_call({invocation_event,Mfa,Args}, _From, #state{recorder=Rec,state=replay}=State) ->
-  try erlymock_recorder:invoke(Rec,Mfa,Args) of
+handle_call({invocation_event,Func,Args}, _From, #state{recorder=Rec,state=replay}=State) ->
+  try erlymock_recorder:invoke(Rec,Func,Args) of
     {RV,R2} -> {reply,{ok,RV},State#state{recorder=R2}}
   catch
-    throw:RV -> io:format("Threw ~p~n",[RV]),{reply,{throw,RV},State};
-    exit:Reason -> io:format("Exit ~p~n",[Reason]),{reply,{exit,Reason},State};
-    error:Reason -> io:format("Error ~p~n",[Reason]),{reply,{error,Reason},State}
+    throw:RV -> {reply,{throw,RV},State};
+    exit:Reason -> {reply,{exit,Reason},State};
+    error:Reason ->{reply,{error,Reason},State}
   end;
-handle_call({invocation_event,_Mfa,_Args}, _From, #state{state=S}=State) ->
+handle_call({invocation_event,_Func,_Args}, _From, #state{state=S}=State) ->
   {reply,{throw,{invalid_state,S}},State};
+
+handle_call({register,ListenerPid},_From,#state{listeners=Listeners,state=init}=State) ->
+  {reply,ok,State#state{listeners=[ListenerPid | Listeners]}};
+handle_call({register,_ListenerPid},_From,#state{state=S}=State) ->
+  {reply,{cannot_register_in_state,S},State};
 
 
 handle_call(_Request, _From, State) ->
@@ -246,7 +269,9 @@ code_change(_OldVsn, State, _Extra) ->
 
 
 make_mock_modules(Rec) ->
-  {ModSet,FuncSet}=erlymock_recorder:foldl(fun({{function,{M,_F,_A}=Mfa},_,_},{Mods,Funcs}) -> {sets:add_element(M,Mods),sets:add_element(Mfa,Funcs)} end,
+  {ModSet,FuncSet}=erlymock_recorder:foldl(
+                    fun({{function,{M,_F,_A}=Mfa},_,_},{Mods,Funcs}) -> {sets:add_element(M,Mods),sets:add_element(Mfa,Funcs)};
+                        (_,Acc) -> Acc end,
                           {sets:new(),sets:new()}, Rec),
   sets:fold(fun(Mod,_) -> 
                 make_module(Mod,sets:filter(fun({M,_,_}) when M =:= Mod-> true ; (_) -> false end, FuncSet)),
