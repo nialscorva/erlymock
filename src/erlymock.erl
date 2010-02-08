@@ -107,7 +107,6 @@ verify() ->
 % --------------------------------------------------------------------
 invocation_event(MFA,Args) when is_tuple(MFA), is_list(Args)->
   dispatch(gen_server:call(?SERVER,{invocation_event,{function,MFA},Args})).
-
   
 % --------------------------------------------------------------------
 %% @spec dispatch(What) -> any()
@@ -121,8 +120,7 @@ dispatch(What) ->
     {throw,T} -> throw(T);
     {exit,E} -> exit(E);
     {error,E} -> erlang:error(E);
-    {ok,RV} -> RV;
-    Any -> Any
+    {ok,RV} -> RV
   end.
 
 internal_strict(Func,Args,Options) ->
@@ -164,24 +162,23 @@ init([]) ->
 %% @end
 % --------------------------------------------------------------------
 handle_call({strict,Func,Args,Options}, _From, #state{recorder=Rec,state=init}=State) ->
-  Rec2=erlymock_recorder:strict(Rec, Func, Args, Options),
-  {reply, ok, State#state{recorder=Rec2}};
+  Rec2=erlymock_recorder:strict(Rec, Func, Args, normalize_options(Options)),
+  {reply, {ok,ok}, State#state{recorder=Rec2}};
 handle_call({strict,_F,_Args,_Options}, _From, #state{state=S}=State) ->
   {reply, {throw,{invalid_state,S}}, State};
 
 handle_call({stub,Func,Args,Options}, _From, #state{recorder=Rec,state=init}=State) ->
-  Rec2=erlymock_recorder:stub(Rec, Func, Args, Options),
-  {reply, ok, State#state{recorder=Rec2}};
+  Rec2=erlymock_recorder:stub(Rec, Func, Args, normalize_options(Options)),
+  {reply, {ok,ok}, State#state{recorder=Rec2}};
 handle_call({stub,_F,_Args,_Options}, _From, #state{state=S}=State) ->
   {reply, {throw,{invalid_state,S}}, State};
 
 handle_call({replay}, _From, #state{listeners=Listeners,recorder=Rec,state=init}=State) ->
   true=lists:all(fun(L) -> gen_server:call(L,{erlymock_state,replay}) end, Listeners),
   ModSet=make_mock_modules(Rec),
-  {reply,ok,State#state{state=replay,module_set=ModSet}};
+  {reply,{ok,ok},State#state{state=replay,module_set=ModSet}};
 handle_call({replay}, _From, #state{state=S}=State) ->
   {reply, {throw,{invalid_state,S}}, State};
-
 
 handle_call({verify}, _From, #state{listeners=Listeners,recorder=Rec,state=replay}=State) ->
   ListProblems = lists:foldl(
@@ -192,18 +189,18 @@ handle_call({verify}, _From, #state{listeners=Listeners,recorder=Rec,state=repla
                        end
                   end, [], Listeners),
   case erlymock_recorder:validate_constraints(Rec) of
-    [] -> {stop,normal,ok,State#state{state=done}};
+    [] -> {stop,normal,{ok,ok},State#state{state=done}};
     Problems -> {stop,normal, {throw,{mock_failure,ListProblems ++ Problems}}, State}
   end;
 handle_call({verify}, _From, #state{state=S}=State) ->
   {stop, normal, {throw,{invalid_state,S}}, State};
 
 handle_call({reset}, _From, State) ->
-  {stop,normal,ok,State};
+  {stop,normal,{ok,ok},State};
 
 handle_call({invocation_event,Func,Args}, _From, #state{recorder=Rec,state=replay}=State) ->
   try erlymock_recorder:invoke(Rec,Func,Args) of
-    {RV,R2} -> {reply,{ok,RV},State#state{recorder=R2}}
+    {RV,R2} -> {reply,RV,State#state{recorder=R2}}
   catch
     throw:RV -> {reply,{throw,RV},State};
     exit:Reason -> {reply,{exit,Reason},State};
@@ -213,14 +210,9 @@ handle_call({invocation_event,_Func,_Args}, _From, #state{state=S}=State) ->
   {reply,{throw,{invalid_state,S}},State};
 
 handle_call({register,ListenerPid},_From,#state{listeners=Listeners,state=init}=State) ->
-  {reply,ok,State#state{listeners=[ListenerPid | Listeners]}};
+  {reply,{ok,ok},State#state{listeners=[ListenerPid | Listeners]}};
 handle_call({register,_ListenerPid},_From,#state{state=S}=State) ->
-  {reply,{cannot_register_in_state,S},State};
-
-
-handle_call(_Request, _From, State) ->
-  Reply = ok,
-  {reply, Reply, State}.
+  {reply,{cannot_register_in_state,S},State}.
 
 % --------------------------------------------------------------------
 %% @spec handle_cast(Msg::term(), State::state()) ->
@@ -324,3 +316,11 @@ compile_and_load_abstract_form(AbsForm) ->
 seq(A, E) when A > E -> [];
 seq(A, E) -> lists:seq(A,E).
 
+
+normalize_options(Options) ->
+  lists:map(fun({return,R}) -> {return,{ok,R}};
+               ({throw,T})  -> {return,{throw,T}};
+               ({exit,E})   -> {return,{exit,E}};
+               ({error,E})  -> {return,{error,E}};
+               (Any)        -> Any
+            end, Options).

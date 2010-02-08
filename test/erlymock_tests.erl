@@ -170,7 +170,7 @@ function_retval_test() ->
   erlymock:start(),
   erlymock:o_o(testmodule1, mockme1, [1,2], [{function, fun(X,Y) ->  X + Y end}]),
   erlymock:replay(),
-  ?assert(3 =:= testmodule1:mockme1(1,2)),
+  ?assertMatch(3,testmodule1:mockme1(1,2)),
   erlymock:verify().
 
 error_in_fun_retval_test() ->

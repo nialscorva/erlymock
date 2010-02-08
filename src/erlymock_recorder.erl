@@ -37,8 +37,7 @@ invoke(Handle,Function, Args)  when is_record(Handle,expectations),is_list(Args)
 
 invoke_strict(#expectations{strict=[{Func,Args,Options} | T]}=Handle,CalledFunction,CalledArgs) when Func =:= CalledFunction, is_list(CalledArgs) ->
   RV=case match_args(Args,CalledArgs) of
-    true -> Ret=return(Options,CalledArgs),
-            {Ret,Handle#expectations{strict=T}};
+    true -> {return(Options,CalledArgs),Handle#expectations{strict=T}};
     _ -> not_found
   end,
   RV;
@@ -78,27 +77,13 @@ match_args(Pattern,CalledArgs) ->
 -define(UNDEF_FLAG,{erlymock,undefined_value}).
 
 return(Options,Args) ->
-  case proplists:get_value(exit,Options,?UNDEF_FLAG) of
-    ?UNDEF_FLAG -> return_error(Options,Args); 
-    Any -> exit(Any)
-  end.
-
-return_error(Options,Args) ->
-  case proplists:get_value(error,Options,?UNDEF_FLAG) of
-    ?UNDEF_FLAG -> return_throw(Options,Args); 
-    Any -> erlang:error(Any,Args)
-  end.
-
-return_throw(Options,Args) ->
-  case proplists:get_value(throw,Options,?UNDEF_FLAG) of
-    ?UNDEF_FLAG -> return_function(Options,Args);
-    Any -> throw(Any)
-  end.
-
-return_function(Options,Args) ->
   case proplists:get_value(function,Options,?UNDEF_FLAG) of
-    ?UNDEF_FLAG -> proplists:get_value(return,Options,ok);
-    Any -> apply(Any,Args)
+    Any when is_function(Any)-> {ok,apply(Any,Args)};
+    ?UNDEF_FLAG -> 
+      case proplists:get_value(return,Options,?UNDEF_FLAG) of
+        ?UNDEF_FLAG -> {ok,ok}; 
+        Any -> Any
+      end
   end.
 
 map(Func, #expectations{stub=Stub,strict=Strict}) when is_function(Func) ->
