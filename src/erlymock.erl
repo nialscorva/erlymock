@@ -12,14 +12,15 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 % public interface
--export([start/0,strict/3, o_o/3, stub/3,strict/4, o_o/4, stub/4, replay/0, verify/0]).
+-export([start/0,strict/3, o_o/3, stub/3,strict/4, o_o/4, stub/4, replay/0, verify/0,verify/1, get_state/0]).
 
 % interfaces used by other mocking groups, not for consumption
 -export([dispatch/1, invocation_event/2,internal_strict/3,internal_stub/3, internal_invocation_event/2,internal_register/1]).
 
 -define(SERVER,?MODULE).
+-define(WAIT_TIMEOUT,500).
 
--record(state, {recorder, module_set,state=init,listeners=[]}).
+-record(state, {recorder, module_set,state=init,listeners=[],verifying_process=null,failures=[]}).
 
 % --------------------------------------------------------------------
 %% @spec start() -> {ok, Pid::pid()}
@@ -89,6 +90,8 @@ stub(M,F,Args, Options) when is_atom(M),is_atom(F),is_list(Args), is_list(Option
 % --------------------------------------------------------------------
 replay() ->
   dispatch(gen_server:call(?SERVER,{replay})).
+  
+
 
 % --------------------------------------------------------------------
 %% @spec verify() -> ok | Error::term()
@@ -97,7 +100,14 @@ replay() ->
 %% @end
 % --------------------------------------------------------------------
 verify() ->
-  dispatch(gen_server:call(?SERVER,{verify})).
+  verify(5000).
+
+verify(Timeout) ->
+  dispatch(gen_server:call(?SERVER,{verify},Timeout)).
+
+
+get_state() ->
+  gen_server:call(?SERVER,{get_state}).
 
 % --------------------------------------------------------------------
 %% @spec invocation_event(MFA,Args) -> RV::term()
@@ -106,6 +116,7 @@ verify() ->
 %% @end
 % --------------------------------------------------------------------
 invocation_event(MFA,Args) when is_tuple(MFA), is_list(Args)->
+  io:format("Invocation event on ~p~n",[MFA]),
   dispatch(gen_server:call(?SERVER,{invocation_event,{function,MFA},Args})).
   
 % --------------------------------------------------------------------
@@ -161,6 +172,8 @@ init([]) ->
 %% @doc Handling call messages
 %% @end
 % --------------------------------------------------------------------
+handle_call({get_state}, _From, State) ->
+  {reply, State, State};
 handle_call({strict,Func,Args,Options}, _From, #state{recorder=Rec,state=init}=State) ->
   Rec2=erlymock_recorder:strict(Rec, Func, Args, normalize_options(Options)),
   {reply, {ok,ok}, State#state{recorder=Rec2}};
@@ -180,17 +193,12 @@ handle_call({replay}, _From, #state{listeners=Listeners,recorder=Rec,state=init}
 handle_call({replay}, _From, #state{state=S}=State) ->
   {reply, {throw,{invalid_state,S}}, State};
 
-handle_call({verify}, _From, #state{listeners=Listeners,recorder=Rec,state=replay}=State) ->
-  ListProblems = lists:foldl(
-                  fun(L,Acc) -> 
-                       case gen_server:call(L,{erlymock_state,verify}) of
-                         true -> Acc;
-                         Any -> [Any | Acc]
-                       end
-                  end, [], Listeners),
-  case erlymock_recorder:validate_constraints(Rec) of
+
+handle_call({verify}, From, #state{state=replay}=State) ->
+  case problem_list(State#state.recorder,State#state.listeners) of
     [] -> {stop,normal,{ok,ok},State#state{state=done}};
-    Problems -> {stop,normal, {throw,{mock_failure,ListProblems ++ Problems}}, State}
+    Problems -> io:format("Had problems ~p, waiting...~n",[Problems]),
+                {noreply, State#state{verifying_process=From,failures=Problems}, ?WAIT_TIMEOUT}
   end;
 handle_call({verify}, _From, #state{state=S}=State) ->
   {stop, normal, {throw,{invalid_state,S}}, State};
@@ -199,12 +207,27 @@ handle_call({reset}, _From, State) ->
   {stop,normal,{ok,ok},State};
 
 handle_call({invocation_event,Func,Args}, _From, #state{recorder=Rec,state=replay}=State) ->
+  DefaultRV  = 
   try erlymock_recorder:invoke(Rec,Func,Args) of
     {RV,R2} -> {reply,RV,State#state{recorder=R2}}
   catch
     throw:RV -> {reply,{throw,RV},State};
     exit:Reason -> {reply,{exit,Reason},State};
     error:Reason ->{reply,{error,Reason},State}
+  end,
+  {_,Reply,State2} = DefaultRV,
+  
+  case State2#state.verifying_process of
+    null -> DefaultRV;
+    _ ->
+      case problem_list(State2#state.recorder,State2#state.listeners) of
+        [] -> 
+          gen_server:reply(State2#state.verifying_process,ok),
+          {stop,normal,Reply,State2#state{state=done}};
+        P2 when length(P2) < length(State2#state.failures) ->
+          io:format("Had problems ~p, waiting...~n",[P2]),
+          {reply, Reply, State2#state{failures=P2}, ?WAIT_TIMEOUT}
+      end        
   end;
 handle_call({invocation_event,_Func,_Args}, _From, #state{state=S}=State) ->
   {reply,{throw,{invalid_state,S}},State};
@@ -213,6 +236,16 @@ handle_call({register,ListenerPid},_From,#state{listeners=Listeners,state=init}=
   {reply,{ok,ok},State#state{listeners=[ListenerPid | Listeners]}};
 handle_call({register,_ListenerPid},_From,#state{state=S}=State) ->
   {reply,{cannot_register_in_state,S},State}.
+
+problem_list(Rec,Listeners) ->
+  lists:foldl(
+   fun(L,Acc) -> 
+        case gen_server:call(L,{erlymock_state,verify}) of
+          true -> Acc;
+          Any -> Any ++ Acc
+        end
+   end, erlymock_recorder:validate_constraints(Rec), Listeners).
+
 
 % --------------------------------------------------------------------
 %% @spec handle_cast(Msg::term(), State::state()) ->
@@ -235,6 +268,13 @@ handle_cast(_Msg, State) ->
 %% @doc Handling all non call/cast messages
 %% @end
 % --------------------------------------------------------------------
+handle_info(timeout, State) ->
+  case State#state.failures of 
+    [] -> gen_server:reply(State#state.verifying_process,ok);
+    Other -> gen_server:reply(State#state.verifying_process,{throw,{mock_failure,Other}})
+  end,
+             
+  {noreply,State};
 handle_info(_Info, State) ->
     {noreply, State}.
 

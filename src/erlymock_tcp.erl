@@ -20,7 +20,7 @@
 
 -define(SERVER,?MODULE).
 
--record(state, {mock_side, client_side, recorder, problems, state=init}).
+-record(state, {mock_side, client_side, recorder, problems=[], state=init}).
 
 % --------------------------------------------------------------------
 %% @spec open() -> {ok, Handle, ReadSocket} 
@@ -91,7 +91,7 @@ stub(Socket,Data) when is_binary(Data)->
 %% @end
 % --------------------------------------------------------------------
 stub(Socket,Data, Options) when is_binary(Data), is_list(Options)->
-  O2=case proplists:get_value(reply,Options,ok) of
+  O2=case proplists:get_value(reply,Options,undefined) of
     undefined -> Options;
     Val -> [{return,{reply,Val}} | Options]
   end,

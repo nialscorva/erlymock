@@ -13,7 +13,6 @@ basic_strict_test() ->
   erlymock_tcp:strict(Socket,<<"test packet">>),
   erlymock:replay(),
   gen_tcp:send(Socket,<<"test packet">>),
-  timer:sleep(500),
   erlymock:verify().
 
 basic_series_strict_test() ->
@@ -26,7 +25,6 @@ basic_series_strict_test() ->
   gen_tcp:send(Socket,<<"test packet">>),
   gen_tcp:send(Socket,<<"test packet2">>),
   gen_tcp:send(Socket,<<"test packet3">>),
-  timer:sleep(500),
   erlymock:verify().
 
 fail_out_of_order_strict_test() ->
