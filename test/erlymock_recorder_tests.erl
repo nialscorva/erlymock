@@ -8,21 +8,6 @@
 
 % External exports
 -export([]).
-% test cases for the module with setup and teardown
-%% erlymock_call_recorder_tests_test_() ->
-%%   { foreach,
-%%      fun() -> setup() end,  % setup
-%%      fun(SetupRetVal) -> teardown(SetupRetVal) end, % teardown
-%%      [
-%%         ?_assert(hey_you =:= write_some_tests)
-%%      ]
-%%    }.
-%% 
-%% setup() -> ok.
-%% 
-%% teardown(_SetupRetval) -> ok.
-
-
 
 simple_strict_test() ->
   Handle=erlymock_recorder:new(),
@@ -82,3 +67,21 @@ simple_stub_test() ->
   H2=erlymock_recorder:strict(Handle,{mod,func},[arg1],[{return,ok}]),
   
   ?assertMatch({ok,_H3} , erlymock_recorder:invoke(H2,{mod,func},[arg1])).
+
+function_arg_checking_test() ->
+  Handle=erlymock_recorder:new(),
+  H2=erlymock_recorder:strict(Handle,{mod,func},fun(arg1) -> true end,[{return,ok}]),
+  
+  ?assertMatch({ok,_} , erlymock_recorder:invoke(H2,{mod,func},[arg1])).
+  
+function_arg_checking_return_false_test() ->
+  Handle=erlymock_recorder:new(),
+  H2=erlymock_recorder:strict(Handle,{mod,func},fun(arg1) -> false end,[{return,ok}]),
+  
+  ?assertThrow({erlymock,unexpected_invocation,_} , erlymock_recorder:invoke(H2,{mod,func},[arg1])).
+
+function_arg_checking_return_bad_function_test() ->
+  Handle=erlymock_recorder:new(),
+  H2=erlymock_recorder:strict(Handle,{mod,func},fun(not_matchable) -> false end,[{return,ok}]),
+  
+  ?assertThrow({erlymock,unexpected_invocation,_} , erlymock_recorder:invoke(H2,{mod,func},[arg1])).

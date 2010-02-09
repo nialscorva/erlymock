@@ -16,13 +16,13 @@ new() ->
 strict(#expectations{strict=S}=Handle,Function, Args) when is_record(Handle,expectations),is_list(Args) ->
   Handle#expectations{strict = S ++ [{Function,Args,?DEFAULT_ARGS}]}.
 
-strict(#expectations{strict=S}=Handle,Function, Args, Options)  when is_record(Handle,expectations),is_list(Args), is_list(Options)->
+strict(#expectations{strict=S}=Handle,Function, Args, Options)  when is_record(Handle,expectations),(is_list(Args) or is_function(Args)), is_list(Options)->
   Handle#expectations{strict = S ++ [{Function,Args,Options}]}.
 
 stub(Handle,Function, Args)  when is_record(Handle,expectations),is_list(Args)->
   stub(Handle,Function, Args, ?DEFAULT_ARGS).
 
-stub(#expectations{stub=S}=Handle,Function, Args, Options)  when is_record(Handle,expectations),is_list(Args), is_list(Options) ->
+stub(#expectations{stub=S}=Handle,Function, Args, Options)  when is_record(Handle,expectations),(is_list(Args) or is_function(Args)), is_list(Options) ->
   Handle#expectations{stub = [{Function,Args,Options} | S]}.
 
 invoke(Handle,Function, Args)  when is_record(Handle,expectations),is_list(Args)->
@@ -70,7 +70,12 @@ match_func({Func,Pattern,Options}=Rec, CalledFunc, CalledArgs) when Func =:= Cal
 match_func(Rec, _CalledFunc, _CalledArgs) ->
   {false,Rec,undefined}.
 
-
+match_args(Pattern,CalledArgs) when is_function(Pattern) ->
+  try apply(Pattern,CalledArgs)
+  catch
+    error:_ -> false;
+    throw:_ -> false
+  end;
 match_args(Pattern,CalledArgs) ->
   lists:all(fun({P,A}) ->  (P == '_') or (P == A) end, lists:zip(Pattern,CalledArgs)).
 
