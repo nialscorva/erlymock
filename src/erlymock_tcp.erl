@@ -19,6 +19,7 @@
 -define(DEFAULT_OPTS, [binary, {packet, 2}, {active, false}]).
 
 -define(SERVER,?MODULE).
+-define(TAG,tcp_socket).
 
 -record(state, {mock_side, client_side, state=init}).
 
@@ -57,7 +58,7 @@ strict(Socket,Data) when is_binary(Data)->
 %% @end
 % --------------------------------------------------------------------
 strict(Socket,Data, Options) when is_binary(Data),is_list(Options)->
-  erlymock:internal_strict({socket,Socket}, [Data], make_options(Options)).
+  erlymock:internal_strict({?TAG,Socket}, [Data], make_options(Options)).
 
 % --------------------------------------------------------------------
 %% @spec o_o(Module::atom(),Function::atom(),Args::list(term())) -> ok
@@ -95,7 +96,7 @@ stub(Socket,Data, Options) when is_binary(Data), is_list(Options)->
     undefined -> Options;
     Val -> [{return,{reply,Val}} | Options]
   end,
-  erlymock:internal_stub({socket,Socket}, [Data], O2).
+  erlymock:internal_stub({?TAG,Socket}, [Data], O2).
 
 % --------------------------------------------------------------------
 %% @spec init([]) ->
@@ -171,7 +172,7 @@ handle_cast(_Msg, State) ->
 % --------------------------------------------------------------------
 handle_info({tcp,_,Data},#state{client_side=Socket,mock_side=MockSocket}=State) ->
   error_logger:error_report("Got data", [Data]),
-  case erlymock:internal_invocation_event({socket,Socket}, [Data]) of
+  case erlymock:internal_invocation_event({?TAG,Socket}, [Data]) of
     {ok,{reply,Reply}} when is_binary(Reply) -> gen_tcp:send(MockSocket, Reply);
     {ok,{reply,Reply}} -> exit({bad_reply,Reply});  
     {ok,{close}} -> gen_tcp:close(MockSocket);

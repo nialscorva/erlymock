@@ -19,7 +19,7 @@
 
 -define(SERVER,?MODULE).
 -define(WAIT_TIMEOUT,50).
-
+-define(TAG, erlymock_function).
 -record(state, {recorder, module_set,state=init,listeners=[],verifying_process=null,failures=[], external_problems=[]}).
 
 % --------------------------------------------------------------------
@@ -46,7 +46,7 @@ strict(M,F,Args) when is_atom(M),is_atom(F),is_list(Args)->
 %% @end
 % --------------------------------------------------------------------
 strict(M,F,Args, Options) when is_atom(M),is_atom(F),is_list(Args),is_list(Options)->
-  dispatch(gen_server:call(?SERVER,{strict,{function,{M,F,length(Args)}},Args,Options})).
+  dispatch(gen_server:call(?SERVER,{strict,{?TAG,{M,F,length(Args)}},Args,Options})).
 
 % --------------------------------------------------------------------
 %% @spec o_o(Module::atom(),Function::atom(),Args::list(term())) -> ok
@@ -81,7 +81,7 @@ stub(M,F,Args) when is_atom(M),is_atom(F),is_list(Args)->
 %% @end
 % --------------------------------------------------------------------
 stub(M,F,Args, Options) when is_atom(M),is_atom(F),is_list(Args), is_list(Options)->
-  dispatch(gen_server:call(?SERVER,{stub,{function,{M,F,length(Args)}},Args,Options})).
+  dispatch(gen_server:call(?SERVER,{stub,{?TAG,{M,F,length(Args)}},Args,Options})).
 
 % --------------------------------------------------------------------
 %% @spec replay() -> ok
@@ -116,7 +116,7 @@ get_state() ->
 %% @end
 % --------------------------------------------------------------------
 invocation_event(MFA,Args) when is_tuple(MFA), is_list(Args)->
-  dispatch(gen_server:call(?SERVER,{invocation_event,{function,MFA},Args})).
+  dispatch(gen_server:call(?SERVER,{invocation_event,{?TAG,MFA},Args})).
   
 % --------------------------------------------------------------------
 %% @spec dispatch(What) -> any()
@@ -329,7 +329,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 make_mock_modules(Rec) ->
   {ModSet,FuncSet}=erlymock_recorder:foldl(
-                    fun({{function,{M,_F,_A}=Mfa},_,_},{Mods,Funcs}) -> {sets:add_element(M,Mods),sets:add_element(Mfa,Funcs)};
+                    fun({{?TAG,{M,_F,_A}=Mfa},_,_},{Mods,Funcs}) -> {sets:add_element(M,Mods),sets:add_element(Mfa,Funcs)};
                         (_,Acc) -> Acc end,
                           {sets:new(),sets:new()}, Rec),
   sets:fold(fun(Mod,_) -> 
