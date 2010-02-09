@@ -179,3 +179,21 @@ error_in_fun_retval_test() ->
   erlymock:replay(),
   ?assertError(_,testmodule1:mockme1(1,2)),
   erlymock:verify().
+
+function_arg_checking_strict_test() ->
+  erlymock:start(),
+  erlymock:strict(testmodule1, mockme1, fun(1,2) -> true end),
+  erlymock:replay(),
+
+  ?assertMatch(ok,testmodule1:mockme1(1,2)),
+
+  ?assertMatch(ok,erlymock:verify()).
+  
+function_arg_checking_stub_test() ->
+  erlymock:start(),
+  erlymock:stub(testmodule1, mockme1, fun(1,2) -> true end),
+  erlymock:replay(),
+
+  ?assertMatch(ok,testmodule1:mockme1(1,2)),
+
+  ?assertMatch(ok,erlymock:verify()).

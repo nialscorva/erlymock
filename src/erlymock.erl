@@ -37,7 +37,7 @@ start() ->
 %% the default options [{return,ok}].
 %% @end
 % --------------------------------------------------------------------
-strict(M,F,Args) when is_atom(M),is_atom(F),is_list(Args)->
+strict(M,F,Args) when is_atom(M),is_atom(F),(is_list(Args) or is_function(Args))->
   strict(M,F,Args,[{return,ok}]).
 
 % --------------------------------------------------------------------
@@ -45,6 +45,8 @@ strict(M,F,Args) when is_atom(M),is_atom(F),is_list(Args)->
 %% @doc Adds a function to the set of calls that must be called in strict order.
 %% @end
 % --------------------------------------------------------------------
+strict(M,F,Args, Options) when is_atom(M),is_atom(F),is_function(Args), is_list(Options)->
+  dispatch(gen_server:call(?SERVER,{strict,{?TAG,{M,F,proplists:get_value(arity,erlang:fun_info(Args))}},Args,Options}));
 strict(M,F,Args, Options) when is_atom(M),is_atom(F),is_list(Args),is_list(Options)->
   dispatch(gen_server:call(?SERVER,{strict,{?TAG,{M,F,length(Args)}},Args,Options})).
 
@@ -54,7 +56,7 @@ strict(M,F,Args, Options) when is_atom(M),is_atom(F),is_list(Args),is_list(Optio
 %% stub(Module,Function,Args,[{return,ok},{max_invocations,1}]).
 %% @end
 % --------------------------------------------------------------------
-o_o(M,F,Args) when is_atom(M),is_atom(F),is_list(Args)->
+o_o(M,F,Args) when is_atom(M),is_atom(F),(is_list(Args) or is_function(Args))->
   stub(M,F,Args,[{return,ok}]).
 
 % --------------------------------------------------------------------
@@ -63,7 +65,7 @@ o_o(M,F,Args) when is_atom(M),is_atom(F),is_list(Args)->
 %% stub(Module,Function,Args,[{max_invocations,1} | Options]).
 %% @end
 % --------------------------------------------------------------------
-o_o(M,F,Args, Options) when is_atom(M),is_atom(F),is_list(Args),is_list(Options)->
+o_o(M,F,Args, Options) when is_atom(M),is_atom(F),(is_list(Args) or is_function(Args)),is_list(Options)->
   stub(M,F,Args,[{max_invocations,1},{min_invocations,1} | Options]).
 
 
@@ -72,7 +74,7 @@ o_o(M,F,Args, Options) when is_atom(M),is_atom(F),is_list(Args),is_list(Options)
 %% @doc Adds a stub call. 
 %% @end
 % --------------------------------------------------------------------
-stub(M,F,Args) when is_atom(M),is_atom(F),is_list(Args)->
+stub(M,F,Args) when is_atom(M),is_atom(F),(is_list(Args) or is_function(Args))->
   stub(M,F,Args,[{return,ok}]).
 
 % --------------------------------------------------------------------
@@ -80,6 +82,8 @@ stub(M,F,Args) when is_atom(M),is_atom(F),is_list(Args)->
 %% @doc Adds a stub call. 
 %% @end
 % --------------------------------------------------------------------
+stub(M,F,Args, Options) when is_atom(M),is_atom(F),is_function(Args), is_list(Options)->
+  dispatch(gen_server:call(?SERVER,{stub,{?TAG,{M,F,proplists:get_value(arity,erlang:fun_info(Args))}},Args,Options}));
 stub(M,F,Args, Options) when is_atom(M),is_atom(F),is_list(Args), is_list(Options)->
   dispatch(gen_server:call(?SERVER,{stub,{?TAG,{M,F,length(Args)}},Args,Options})).
 
