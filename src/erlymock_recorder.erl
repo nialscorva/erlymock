@@ -36,7 +36,6 @@ invoke(Handle,Function, Args)  when is_record(Handle,expectations),is_list(Args)
   end.
 
 invoke_strict(#expectations{strict=[{Func,Args,Options} | T]}=Handle,CalledFunction,CalledArgs) when Func =:= CalledFunction, is_list(CalledArgs) ->
-  io:format("Strict Matched ~p~nNew expectation is ~p~n",[{Func,Args,Options},T]),
   RV=case match_args(Args,CalledArgs) of
     true -> {return(Options,CalledArgs),Handle#expectations{strict=T}};
     _ -> not_found

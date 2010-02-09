@@ -27,6 +27,18 @@ basic_series_strict_test() ->
   gen_tcp:send(Socket,<<"test packet3">>),
   erlymock:verify().
 
+unexpected_send_test() ->
+  erlymock:start(),
+  {ok,Socket}=erlymock_tcp:open(2000),
+  erlymock_tcp:strict(Socket,<<"test packet">>),
+  erlymock_tcp:strict(Socket,<<"test packet2">>),
+  erlymock:replay(),
+  gen_tcp:send(Socket,<<"test packet">>),
+  gen_tcp:send(Socket,<<"spanish inquisition">>),
+  gen_tcp:send(Socket,<<"test packet2">>),
+  timer:sleep(100),
+  ?assertThrow(_,erlymock:verify()).
+
 fail_out_of_order_strict_test() ->
   erlymock:start(),
   {ok,Socket}=erlymock_tcp:open(2000),
@@ -71,5 +83,4 @@ close_connection_test() ->
     {tcp,_,Data} -> {should_not_receive_data,Data}
     after 500 -> reply_timeout
   end,
-  
   ?assert(RV).

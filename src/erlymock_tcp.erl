@@ -20,7 +20,7 @@
 
 -define(SERVER,?MODULE).
 
--record(state, {mock_side, client_side, recorder, problems=[], state=init}).
+-record(state, {mock_side, client_side, state=init}).
 
 % --------------------------------------------------------------------
 %% @spec open() -> {ok, Handle, ReadSocket} 
@@ -108,6 +108,7 @@ stub(Socket,Data, Options) when is_binary(Data), is_list(Options)->
 %% @end 
 % --------------------------------------------------------------------
 init([Port,SocketOpts]) ->
+%%   process_flag(trap_exit,true),
   Self = self(),
   spawn(fun() ->
              {ok, ListenSocket} = gen_tcp:listen(Port,[{reuseaddr,true} | SocketOpts]),
@@ -122,7 +123,7 @@ init([Port,SocketOpts]) ->
   end,
   receive
     {takeover,ServerSocket} ->
-      {ok, #state{client_side=ClientSocket, mock_side=ServerSocket, recorder=erlymock_recorder:new()}}
+      {ok, #state{client_side=ClientSocket, mock_side=ServerSocket}}
     after 5000 -> {stop, timeout_on_connect}
   end.
 
@@ -144,8 +145,8 @@ handle_call({get_socket,NewOwner}, _From, #state{client_side=Socket,state=init}=
 handle_call({erlymock_state,replay}, _From, #state{mock_side=ServerSocket}=State) ->
   inet:setopts(ServerSocket, [{active,once}]),
   {reply,true,State};
-handle_call({erlymock_state,verify}, _From, #state{problems=P}=State) ->
-  {stop,normal,P,State}.
+handle_call({erlymock_state,verify}, _From, State) ->
+  {reply,true,State}.
 
 % --------------------------------------------------------------------
 %% @spec handle_cast(Msg::term(), State::state()) ->
@@ -168,24 +169,20 @@ handle_cast(_Msg, State) ->
 %% @doc Handling all non call/cast messages
 %% @end
 % --------------------------------------------------------------------
-handle_info({tcp,_,Data},#state{client_side=Socket,mock_side=MockSocket, problems=P}=State) ->
+handle_info({tcp,_,Data},#state{client_side=Socket,mock_side=MockSocket}=State) ->
   error_logger:error_report("Got data", [Data]),
-  Status=case erlymock:internal_invocation_event({socket,Socket}, [Data]) of
+  case erlymock:internal_invocation_event({socket,Socket}, [Data]) of
     {ok,{reply,Reply}} when is_binary(Reply) -> gen_tcp:send(MockSocket, Reply);
     {ok,{reply,Reply}} -> exit({bad_reply,Reply});  
     {ok,{close}} -> gen_tcp:close(MockSocket);
     {ok,_Any} -> ok;
-    Any -> {erlymock_tcp_error, {data,Data}, Any}
+    Any -> erlymock:internal_error({erlymock_tcp_error, {data,Data}, Any})
   end,
   inet:setopts(MockSocket, [{active,once}]),
-  case Status of
-    ok ->  {noreply, State};
-    _ -> {noreply, State#state{problems = [Status | P]}}
-  end;
+  {noreply, State};
 handle_info({tcp_closed,_}, State) ->
   {noreply, State};
-handle_info(Info, State) ->
-  io:format("erlymock_tcp received ~p",[Info]),
+handle_info(_Info, State) ->
   {noreply, State}.
 
 % --------------------------------------------------------------------
