@@ -30,19 +30,20 @@ products := ${beams} ${app_file} ${rel_file}
 ################################################################
 # Rules
 ################################################################
-.PHONY: all compile shell run doc
+.PHONY: all compile shell run doc test testcompile
 all: compile
 
 compile: ${sources}
 	mkdir -p ${ebin}
 	erlc ${erlc_flags} -o ${ebin} ${includes} ${sources}
 
-shell: compile
-	-mkdir -p ${logs}
+shell: compile testcompile
 	erl ${erl_node} ${erl_path} ${erl_boot} ${erl_config}
 
-test: compile
+testcompile: compile
 	erlc ${erlc_flags} -o ${ebin} ${includes} ${test_src}	
+	
+test: testcompile
 	erl ${erl_node} ${erl_path} ${erl_boot} ${erl_config} -noshell -s eunit test $(modules) -s init stop 
 
 doc:
@@ -50,5 +51,5 @@ doc:
 	erl -noshell -run edoc_run application "'$(appname)'"
 
 clean:
-	rm -f ${products}
+	rm -f ${products} ebin/*.beam
 
