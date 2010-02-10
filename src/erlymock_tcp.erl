@@ -7,8 +7,6 @@
 
 -behaviour(gen_server).
 
--include_lib("eunit/include/eunit.hrl").
-
 % External exports
 -export([open/0,open/1,o_o/2,o_o/3,strict/2,strict/3,stub/2,stub/3]).
 
