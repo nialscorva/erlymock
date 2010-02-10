@@ -84,3 +84,31 @@ close_connection_test() ->
     after 500 -> reply_timeout
   end,
   ?assert(RV).
+
+function_arg_checking_strict_test() ->
+  erlymock:start(),
+  {ok,Socket}=erlymock_tcp:open(2000),
+  erlymock_tcp:strict(Socket, fun(<<"test packet">>) -> true end),
+  erlymock:replay(),
+
+  gen_tcp:send(Socket,<<"test packet">>),
+
+  ?assertMatch(ok,erlymock:verify()).
+
+function_arg_checking_stub_test() ->
+  erlymock:start(),
+  {ok,Socket}=erlymock_tcp:open(2000),
+  erlymock_tcp:o_o(Socket, fun(<<"test packet">>) -> true end),
+  erlymock:replay(),
+
+  gen_tcp:send(Socket,<<"test packet">>),
+  ?assertMatch(ok,erlymock:verify()).
+
+function_arg_checking_fail_test() ->
+  erlymock:start(),
+  {ok,Socket}=erlymock_tcp:open(2000),
+  erlymock_tcp:o_o(Socket, fun(<<"not matched">>) -> true end),
+  erlymock:replay(),
+
+  gen_tcp:send(Socket,<<"test packet">>),
+  ?assertThrow(_,erlymock:verify()).

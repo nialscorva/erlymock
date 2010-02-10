@@ -18,7 +18,7 @@
 -export([dispatch/1, invocation_event/2,internal_strict/3,internal_stub/3, internal_invocation_event/2,internal_register/1, internal_error/1]).
 
 -define(SERVER,?MODULE).
--define(WAIT_TIMEOUT,50).
+-define(WAIT_TIMEOUT,100).
 -define(TAG, erlymock_function).
 -record(state, {recorder, module_set,state=init,listeners=[],verifying_process=null,failures=[], external_problems=[]}).
 
@@ -205,7 +205,7 @@ handle_call({verify}, From, #state{state=replay,listeners=Listeners}=State) ->
   case problem_list(State#state.recorder) of
       []       -> 
           reply_to_verifier(State#state{verifying_process=From},[]),
-          {stop, normal,State#state{state=done}};
+          {stop, normal,State#state{state=done,verifying_process=From}};
       Problems ->
           {noreply, State#state{failures=Problems,verifying_process=From}, ?WAIT_TIMEOUT}
   end;
@@ -225,23 +225,25 @@ handle_call({invocation_event,Func,Args}, _From, #state{recorder=Rec,state=repla
     error:Reason ->{{error,Reason},State}
   end,
 
-  %If there's an outstanding verification in progress, then we need to do a stop/wait check
+  % If there's an outstanding verification in progress, then we set the timeout to let other modules clean up
+  % and report any errors.
   case is_verification_in_progress(State2) of
     false -> {reply, DefaultRV, State2};
     true -> 
-      case problem_list(State2#state.recorder) of
-        []       ->
-          reply_to_verifier(State,[]),
-          {stop, normal,DefaultRV,State2#state{state=done}};
-        Problems -> 
-          {reply, DefaultRV, State2#state{failures=Problems}, ?WAIT_TIMEOUT}
-      end
+        {reply, DefaultRV, 
+         State2#state{failures=problem_list(State2#state.recorder)}, 
+         ?WAIT_TIMEOUT}
   end;
 handle_call({invocation_event,_Func,_Args}, _From, #state{state=S}=State) ->
   {reply,{throw,{invalid_state,S}},State};
 
 handle_call({error_report,Error},_From,#state{external_problems=ExtProbs}=State) ->
-  {reply, {ok,ok}, State#state{external_problems=[Error | ExtProbs]}};
+  % If there's an outstanding verification in progress, then we set the timeout to let other modules clean up
+  % and report any errors.
+  case is_verification_in_progress(State) of
+    false -> {reply, {ok,ok}, State#state{external_problems=[Error | ExtProbs]}};
+    true -> {reply, {ok,ok}, State#state{external_problems=[Error | ExtProbs]}, ?WAIT_TIMEOUT}
+  end;    
 
 
 handle_call({register,ListenerPid},_From,#state{listeners=Listeners,state=init}=State) ->
@@ -253,12 +255,6 @@ handle_call({register,_ListenerPid},_From,#state{state=S}=State) ->
 is_verification_in_progress(#state{verifying_process=null}) -> false;
 is_verification_in_progress(_) -> true.
 
-
-%% return_to_verifier(#state{verifying_process=Verifier}=State,DefaultReply) ->
-%%   case Verifier of
-%%     null -> {reply, DefaultReply, State};
-%%     Pid ->       {stop,normal,DefaultReply,State#state{state=done}}
-%%   end.
 
 problem_list(Rec) ->
   erlymock_recorder:validate_constraints(Rec).
@@ -286,23 +282,16 @@ handle_cast(_Msg, State) ->
 % --------------------------------------------------------------------
 handle_info(timeout, State) ->
   case is_verification_in_progress(State) of
-    false -> {noreply, State};
-    true -> 
-      case State#state.failures of 
-        [] -> 
-          reply_to_verifier(State,[]),
-          {noreply, State}; 
-        Problems -> 
-          reply_to_verifier(State,Problems),
-          {stop,normal,State#state{state=done}}
-        end
+     false -> {noreply, State};
+     true -> 
+          reply_to_verifier(State,State#state.failures),
+          {stop, normal, State#state{state=done}}
   end;
 handle_info(_Info, State) ->
     {noreply, State}.
 
 reply_to_verifier(State,Problems) ->
   AllProblems= Problems ++ State#state.external_problems,
-  io:format("All problems is ~p~n",[AllProblems]),
   case AllProblems of
     [] ->gen_server:reply(State#state.verifying_process,{ok,ok});
     _ -> gen_server:reply(State#state.verifying_process,{throw,{mock_failure,AllProblems}})
