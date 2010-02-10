@@ -9,7 +9,7 @@
 
 basic_strict_test() ->
   erlymock:start(),
-  {ok,Socket}=erlymock_tcp:open(2000),
+  {ok,Socket}=erlymock_tcp:open(),
   erlymock_tcp:strict(Socket,<<"test packet">>),
   erlymock:replay(),
   gen_tcp:send(Socket,<<"test packet">>),
@@ -17,7 +17,7 @@ basic_strict_test() ->
 
 basic_series_strict_test() ->
   erlymock:start(),
-  {ok,Socket}=erlymock_tcp:open(2000),
+  {ok,Socket}=erlymock_tcp:open(),
   erlymock_tcp:strict(Socket,<<"test packet">>),
   erlymock_tcp:strict(Socket,<<"test packet2">>),
   erlymock_tcp:strict(Socket,<<"test packet3">>),
@@ -29,7 +29,7 @@ basic_series_strict_test() ->
 
 unexpected_send_test() ->
   erlymock:start(),
-  {ok,Socket}=erlymock_tcp:open(2000),
+  {ok,Socket}=erlymock_tcp:open(),
   erlymock_tcp:strict(Socket,<<"test packet">>),
   erlymock_tcp:strict(Socket,<<"test packet2">>),
   erlymock:replay(),
@@ -41,7 +41,7 @@ unexpected_send_test() ->
 
 fail_out_of_order_strict_test() ->
   erlymock:start(),
-  {ok,Socket}=erlymock_tcp:open(2000),
+  {ok,Socket}=erlymock_tcp:open(),
   erlymock_tcp:strict(Socket,<<"test packet">>),
   erlymock_tcp:strict(Socket,<<"test packet2">>),
   erlymock_tcp:strict(Socket,<<"test packet3">>),
@@ -54,11 +54,11 @@ fail_out_of_order_strict_test() ->
 
 reply_to_packet_test() ->
   erlymock:start(),
-  {ok,Socket}=erlymock_tcp:open(2000),
+  {ok,Socket}=erlymock_tcp:open(),
   erlymock_tcp:strict(Socket,<<"test packet">>,[{reply,<<"reply">>}]),
   erlymock:replay(),
   inet:setopts(Socket, [{active,true}]),
-
+ 
   gen_tcp:send(Socket,<<"test packet">>),
   % cannot assert inside of receive without problems, it seems
   RV=receive
@@ -71,7 +71,7 @@ reply_to_packet_test() ->
                              
 close_connection_test() ->
   erlymock:start(),
-  {ok,Socket}=erlymock_tcp:open(2000),
+  {ok,Socket}=erlymock_tcp:open(),
   erlymock_tcp:strict(Socket,<<"test packet">>,[close]),
   erlymock:replay(),
   inet:setopts(Socket, [{active,true}]),
@@ -87,7 +87,7 @@ close_connection_test() ->
 
 function_arg_checking_strict_test() ->
   erlymock:start(),
-  {ok,Socket}=erlymock_tcp:open(2000),
+  {ok,Socket}=erlymock_tcp:open(),
   erlymock_tcp:strict(Socket, fun(<<"test packet">>) -> true end),
   erlymock:replay(),
 
@@ -97,7 +97,7 @@ function_arg_checking_strict_test() ->
 
 function_arg_checking_stub_test() ->
   erlymock:start(),
-  {ok,Socket}=erlymock_tcp:open(2000),
+  {ok,Socket}=erlymock_tcp:open(),
   erlymock_tcp:o_o(Socket, fun(<<"test packet">>) -> true end),
   erlymock:replay(),
 
@@ -106,7 +106,7 @@ function_arg_checking_stub_test() ->
 
 function_arg_checking_fail_test() ->
   erlymock:start(),
-  {ok,Socket}=erlymock_tcp:open(2000),
+  {ok,Socket}=erlymock_tcp:open(),
   erlymock_tcp:o_o(Socket, fun(<<"not matched">>) -> true end),
   erlymock:replay(),
 

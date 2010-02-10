@@ -10,13 +10,13 @@
 -include_lib("eunit/include/eunit.hrl").
 
 % External exports
--export([open/1,open/2,o_o/2,o_o/3,strict/2,strict/3,stub/2,stub/3]).
+-export([open/0,open/1,o_o/2,o_o/3,strict/2,strict/3,stub/2,stub/3]).
 
 % gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 
--define(DEFAULT_OPTS, [binary, {packet, 2}, {active, false}]).
+-define(DEFAULT_OPTS, [{socket_options,[binary, {packet, 2}, {active, false}]}]).
 
 -define(SERVER,?MODULE).
 -define(TAG,tcp_socket).
@@ -28,17 +28,17 @@
 %% @doc Initiates the server
 %% @end 
 % --------------------------------------------------------------------
-open(Port) ->
-  open(Port,?DEFAULT_OPTS).
+open() ->
+  open(?DEFAULT_OPTS).
 
 % --------------------------------------------------------------------
 %% @spec open() -> {ok, Handle, ReadSocket} 
 %% @doc Initiates the server
 %% @end 
 % --------------------------------------------------------------------
-open(Port,SocketOpts) when is_integer(Port),is_list(SocketOpts) ->
+open(SocketOpts) when is_list(SocketOpts) ->
   catch(gen_server:call(?SERVER,{reset})),  % make sure a stail instance isn't hanging around
-  {ok,Pid}=gen_server:start_link({local,?SERVER},?MODULE,[Port,SocketOpts],[]),
+  {ok,Pid}=gen_server:start_link({local,?SERVER},?MODULE,[SocketOpts],[]),
   erlymock:internal_register(Pid),
   Socket=gen_server:call(Pid,{get_socket,self()}),
   {ok, Socket}.  
@@ -110,18 +110,20 @@ stub(Socket,Data, Options) when is_binary(Data), is_list(Options)->
 %% @doc Initiates the server
 %% @end 
 % --------------------------------------------------------------------
-init([Port,SocketOpts]) ->
+init([Options]) ->
 %%   process_flag(trap_exit,true),
   Self = self(),
+  ListenPort=proplists:get_value(port,Options,0),
   spawn(fun() ->
-             {ok, ListenSocket} = gen_tcp:listen(Port,[{reuseaddr,true} | SocketOpts]),
-             Self ! {ready},
+             {ok, ListenSocket} = gen_tcp:listen(ListenPort,server_options(Options)),
+             {ok,P}=inet:port(ListenSocket),
+             Self ! {ready, P},
              {ok, Socket} = gen_tcp:accept(ListenSocket),
              gen_tcp:controlling_process(Socket, Self),
              Self ! {takeover,Socket}
         end),
   {ok, ClientSocket} =receive
-    {ready} -> gen_tcp:connect('localhost', Port, SocketOpts)
+    {ready,Port} -> gen_tcp:connect('localhost', Port, client_options(Options))
     after 5000 -> timeout_waiting_for_server_ready
   end,
   receive
@@ -129,6 +131,13 @@ init([Port,SocketOpts]) ->
       {ok, #state{client_side=ClientSocket, mock_side=ServerSocket}}
     after 5000 -> {stop, timeout_on_connect}
   end.
+
+server_options(Options) ->
+  proplists:get_value(socket_options,Options,[]).                   
+
+client_options(Options) ->
+  proplists:get_value(socket_options,Options,[]).                  
+
 
 % --------------------------------------------------------------------
 %% @spec handle_call(Request::term(), From::pid(), State::state()) ->
