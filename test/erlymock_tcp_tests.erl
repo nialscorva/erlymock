@@ -36,7 +36,6 @@ unexpected_send_test() ->
   gen_tcp:send(Socket,<<"test packet">>),
   gen_tcp:send(Socket,<<"spanish inquisition">>),
   gen_tcp:send(Socket,<<"test packet2">>),
-  timer:sleep(100),
   ?assertThrow(_,erlymock:verify()).
 
 fail_out_of_order_strict_test() ->
@@ -49,7 +48,6 @@ fail_out_of_order_strict_test() ->
   gen_tcp:send(Socket,<<"test packet2">>),
   gen_tcp:send(Socket,<<"test packet">>),
   gen_tcp:send(Socket,<<"test packet3">>),
-  timer:sleep(500),
   ?assertThrow(_,erlymock:verify()).
 
 reply_to_packet_test() ->
