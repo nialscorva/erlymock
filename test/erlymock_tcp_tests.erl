@@ -1,6 +1,6 @@
-%% @author jason
-%% @copyright jason Jan 24, 2010  PROPRIETARY-- NOT FOR DISTRIBUTION
-%% @doc TODO: Add description to erlymock_tcp_tests
+%% @author Jason Wagner
+%% @copyright Jason Wagner Jan 2010 Distributed under MIT License
+%% @doc Unit tests for erlymock_tcp
 %% @end
 %% --------------------------------------------------------------------
 -module(erlymock_tcp_tests).

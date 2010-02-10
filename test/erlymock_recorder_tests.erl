@@ -1,6 +1,6 @@
-%% @author jason
-%% @copyright jason Jan 21, 2010  PROPRIETARY-- NOT FOR DISTRIBUTION
-%% @doc TODO: Add description to erlymock_call_recorder_tests
+%% @author Jason Wagner
+%% @copyright Jason Wagner Jan 2010 Distributed under MIT License
+%% @doc Unit tests for the erlymock_recorder
 %% @end
 %% --------------------------------------------------------------------
 -module(erlymock_recorder_tests).

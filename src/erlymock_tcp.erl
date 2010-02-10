@@ -1,6 +1,6 @@
-%% @author jason
-%% @copyright jason Jan 21, 2010  PROPRIETARY-- NOT FOR DISTRIBUTION
-%% @doc TODO: Add description to mocksocket
+%% @author Jason Wagner
+%% @copyright Jason Wagner Jan 2010 Distributed under MIT License
+%% @doc Erlymock_tcp mocks a tcp connection.
 %% @end
 %% --------------------------------------------------------------------
 -module(erlymock_tcp).

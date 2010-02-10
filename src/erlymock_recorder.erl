@@ -1,6 +1,7 @@
-%% @author jason
-%% @copyright jason Jan 21, 2010  PROPRIETARY-- NOT FOR DISTRIBUTION
-%% @doc TODO: Add description to erlymock_call_recorder
+%% @author Jason Wagner
+%% @copyright Jason Wagner Jan 2010 Distributed under MIT License
+%% @doc Keeps track of strictly ordered functions and stubbed functions, as well as verifying
+%% whether constraints are met.
 %% @end
 %% --------------------------------------------------------------------
 -module(erlymock_recorder).

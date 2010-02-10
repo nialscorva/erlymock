@@ -1,3 +1,8 @@
+%% @author Jason Wagner
+%% @copyright Jason Wagner Jan 2010 Distributed under MIT License
+%% @doc Unit tests for the erlymock public interface
+%% @end
+%% --------------------------------------------------------------------
 -module(erlymock_tests).
 -compile(export_all).
 

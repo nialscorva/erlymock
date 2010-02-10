@@ -1,6 +1,8 @@
-%% @author jason
-%% @copyright jason Jan 22, 2010  PROPRIETARY-- NOT FOR DISTRIBUTION
-%% @doc TODO: Add description to erlymock
+%% @author Jason Wagner
+%% @copyright Jason Wagner Jan 2010 Distributed under MIT License
+%% @doc Erlymock is the core module for the erlymock framework.  It performs two
+%% functions-- mocking entire modules and acting as the primary interface for
+%% tracking and pushing errors to the test case.
 %% @end
 %% --------------------------------------------------------------------
 -module(erlymock).
