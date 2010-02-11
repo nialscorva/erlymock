@@ -3,6 +3,7 @@
 %% @doc Keeps track of strictly ordered functions and stubbed functions, as well as verifying
 %% whether constraints are met.
 %% @end
+%% @private
 %% --------------------------------------------------------------------
 -module(erlymock_recorder).
 

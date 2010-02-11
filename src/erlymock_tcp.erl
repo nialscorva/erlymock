@@ -15,81 +15,94 @@
 
 
 -define(DEFAULT_OPTS, [{socket_options,[binary, {packet, 2}, {active, false}]}]).
-
 -define(SERVER,?MODULE).
 -define(TAG,tcp_socket).
 
 -record(state, {mock_side, client_side, state=init}).
 
+
 % --------------------------------------------------------------------
-%% @spec open() -> {ok, Handle, ReadSocket} 
-%% @doc Initiates the server
+%% @spec open() -> {ok, Socket} 
+%% @doc Opens a socket using default options that will be mocked on the other end.  
+%% Note that only one socket can be opened in any test.
 %% @end 
 % --------------------------------------------------------------------
 open() ->
   open(?DEFAULT_OPTS).
 
 % --------------------------------------------------------------------
-%% @spec open() -> {ok, Handle, ReadSocket} 
-%% @doc Initiates the server
+%% @spec open( [Option ]) -> {ok, Socket::client_socket()}
+%%  Option = {port, Port::integer()} 
+%%         | {socket_options, GenTCPOptions}
+%% @doc Opens a socket that will be mocked on the other end.  Note that only
+%% one socket can be opened in any test.  socket options are defined in the
+%% gen_tcp page and will be applied to both sides of the connection.  The only caveat
+%% is that both sides will be set {active,false}.  The mock side will be active once
+%% erlymock:replay() is called.  The port is optional, if one is not provided then
+%% the system will assign one.
 %% @end 
 % --------------------------------------------------------------------
-open(SocketOpts) when is_list(SocketOpts) ->
-  catch(gen_server:call(?SERVER,{reset})),  % make sure a stail instance isn't hanging around
-  {ok,Pid}=gen_server:start_link({local,?SERVER},?MODULE,[SocketOpts],[]),
+open(Options) when is_list(Options) ->
+  catch(gen_server:call(?SERVER,{reset})),  % make sure a stale instance isn't hanging around
+  {ok,Pid}=gen_server:start_link({local,?SERVER},?MODULE,[Options],[]),
   erlymock:internal_register(Pid),
   Socket=gen_server:call(Pid,{get_socket,self()}),
   {ok, Socket}.  
 
 
 % --------------------------------------------------------------------
-%% @spec strict(Module::atom(), Function::atom(), Args::list(term())) -> ok
-%% @doc Adds a function to the set of calls that must be called in strict order.  Uses
-%% the default options [{return,ok}].
+%% @spec strict(Socket::client_socket(),Verifier::verifier()) -> ok
+%% @doc Requires the socket to receive a value that matches the Verifier.  
+%% No response is made on the socket.
 %% @end
 % --------------------------------------------------------------------
-strict(Socket,Data) when is_binary(Data) or is_function(Data)->
-  strict(Socket,Data,[]).
+strict(Socket,Verifier) when is_binary(Verifier) or is_function(Verifier)->
+  strict(Socket,Verifier,[]).
 
 % --------------------------------------------------------------------
-%% @spec strict(Module::atom(), Function::atom(), Args::list(term()), Options::option_list()) -> ok
-%% @doc Adds a function to the set of calls that must be called in strict order.
+%% @spec strict(Socket::client_socket(),Verifier::verifier(),[verification_option()]) -> ok
+%% @doc Requires the socket to receive a value that matches the Verifier binary
+%% or causes the Verifier function to return true.
 %% @end
 % --------------------------------------------------------------------
-strict(Socket,Data, Options) when is_function(Data),is_list(Options)->
-  erlymock:internal_strict({?TAG,Socket}, Data, make_options(Options));
-strict(Socket,Data, Options) when is_binary(Data),is_list(Options)->
-  erlymock:internal_strict({?TAG,Socket}, [Data], make_options(Options)).
+strict(Socket,Verifier, Options) when is_function(Verifier),is_list(Options)->
+  erlymock:internal_strict({?TAG,Socket}, Verifier, make_options(Options));
+strict(Socket,Verifier, Options) when is_binary(Verifier),is_list(Options)->
+  erlymock:internal_strict({?TAG,Socket}, [Verifier], make_options(Options)).
 
 % --------------------------------------------------------------------
-%% @spec o_o(Module::atom(),Function::atom(),Args::list(term())) -> ok
-%% @doc Adds an out-of-order call with default options.  Equivalent to
-%% stub(Module,Function,Args,[{return,ok},{max_invocations,1}]).
+%% @spec o_o(Socket::client_socket(),Verifier::verifier()) -> ok
+%% @doc Requires the socket to receive a value that matches the Verifier binary
+%% or causes the Verifier function to return true once and only once in an unspecified
+%% order.  Alias for stub(..., [{max_invocations,1},{min_invocations,1}])
 %% @end
 % --------------------------------------------------------------------
-o_o(Socket,Data) when (is_binary(Data) or is_function(Data))->
-  o_o(Socket,Data,[]).
+o_o(Socket,Verifier) when (is_binary(Verifier) or is_function(Verifier))->
+  o_o(Socket,Verifier,[]).
 
 % --------------------------------------------------------------------
-%% @spec o_o(Module::atom(),Function::atom(),Args::list(term()),Options::option_list()) -> ok
-%% @doc Adds an out-of-order call.  Equivalent to
-%% stub(Module,Function,Args,[{max_invocations,1} | Options]).
+%% @spec o_o(Socket::client_socket(),Verifier::verifier(),[verification_option()]) -> ok
+%% @doc Requires the socket to receive a value that matches the Verifier binary
+%% or causes the Verifier function to return true once and only once in an unspecified
+%% order.  Alias for stub(..., [{max_invocations,1},{min_invocations,1} | Options])
 %% @end
 % --------------------------------------------------------------------
-o_o(Socket,Data,Options) when (is_binary(Data) or is_function(Data)),is_list(Options)->
-  stub(Socket,Data,[{max_invocations,1},{min_invocations,1} | Options]).
+o_o(Socket,Verifier,Options) when (is_binary(Verifier) or is_function(Verifier)),is_list(Options)->
+  stub(Socket,Verifier,[{max_invocations,1},{min_invocations,1} | Options]).
 
 % --------------------------------------------------------------------
-%% @spec stub(Module::atom(),Function::atom(),Args::list(term())) -> ok
-%% @doc Adds a stub call. 
+%% @spec stub(Socket::client_socket(),Verifier::verifier()) -> ok
+%% @doc Requires the socket to receive a value that matches the Verifier binary
+%% or causes the Verifier function to return true.
 %% @end
 % --------------------------------------------------------------------
 stub(Socket,Data) when (is_binary(Data) or is_function(Data))->
   stub(Socket,Data,[]).
 
 % --------------------------------------------------------------------
-%% @spec stub(Module::atom(),Function::atom(),Args::list(term()),Options::option_list()) -> ok
-%% @doc Adds a stub call. 
+%% @spec stub(Socket::client_socket(),Verifier::verifier(),[verification_option()]) -> ok
+%% @doc Requires the socket to receive a value that matches the Verifier binary
+%% or causes the Verifier function to return true.
 %% @end
 % --------------------------------------------------------------------
 stub(Socket,Data, Options) when is_function(Data), is_list(Options)->
@@ -109,7 +122,6 @@ stub(Socket,Data, Options) when is_binary(Data), is_list(Options)->
 %% @end 
 % --------------------------------------------------------------------
 init([Options]) ->
-%%   process_flag(trap_exit,true),
   Self = self(),
   ListenPort=proplists:get_value(port,Options,0),
   spawn(fun() ->
@@ -131,10 +143,10 @@ init([Options]) ->
   end.
 
 server_options(Options) ->
-  proplists:get_value(socket_options,Options,[]).                   
+  [{active,false} | proplists:delete(active,proplists:get_value(socket_options,Options,[]))].
 
 client_options(Options) ->
-  proplists:get_value(socket_options,Options,[]).                  
+  [{active,false} | proplists:delete(active,proplists:get_value(socket_options,Options,[]))].
 
 
 % --------------------------------------------------------------------
@@ -154,9 +166,9 @@ handle_call({get_socket,NewOwner}, _From, #state{client_side=Socket,state=init}=
   {reply,Socket,State};
 handle_call({erlymock_state,replay}, _From, #state{mock_side=ServerSocket}=State) ->
   inet:setopts(ServerSocket, [{active,once}]),
-  {reply,true,State};
+  {reply,true,State#state{state=replay}};
 handle_call({erlymock_state,verify}, _From, State) ->
-  {reply,true,State};
+  {reply,true,State#state{state=done}};
 handle_call({reset},_From,State) ->
   {stop, normal, ok, State}.
 
@@ -197,7 +209,7 @@ handle_info(_Info, State) ->
   {noreply, State}.
 
 % --------------------------------------------------------------------
-%% @spec terminate/2(Reason::term(),State::state()) -> any()
+%% @spec terminate(Reason::term(),State::state()) -> any()
 %% @private
 %% @doc Shutdown the server
 %% @end
@@ -215,6 +227,7 @@ terminate(_Reason, #state{mock_side=MockSocket}) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
+
 make_options(Options) ->
   lists:foldl(fun({reply, Val},Acc) when is_binary(Val) -> [{return,{reply,Val}} | Acc];
              (close,Acc) -> [{return, {close}} | Acc];
@@ -223,3 +236,13 @@ make_options(Options) ->
              ({min_invocations,D} = A,Acc) when is_number(D) -> [A | Acc];
              (Any,_) -> throw({erlymock_invalid_option, Any})
             end, [], Options).
+
+%% @type verification_option() = close | {close,true} 
+%%                             | {max_invocations, Count::integer()} 
+%%                             | {min_invocations, Count::integer()} 
+%%                             | {reply, Response::binary()}.
+
+%% @type verifier() = binary() | function().  Function must be of form fun(Arg::binary()) and return true if the Arg is acceptible.
+%% Any non-true value or failed match will be interpretted as false.
+
+%% @type client_socket().  A handle to a gen_tcp socket, usable for all such functions.

@@ -1,0 +1,46 @@
+@author Jason Wagner
+@copyright Jason Wagner Jan 2010 Distributed under MIT License
+@doc
+
+Erlymock is a mocking library for erlang that can mock functions and tcp sockets.  It is extensible to cover other areas such as processes and OTP behaviors.
+
+<h1>Usage</h1>
+All mock tests have the same basic form:
+```
+erlymock:start(),
+% initialize
+erlymock:replay(),
+% test
+erlymock:verify().
+'''
+<h2>Initialization</h2>
+Initialization sets up the mock by using strict, stub, and o_o calls.  Strict calls must be called in the order that they are declared during initialization and only once each.  Stub calls can be called in any order, but min_invocations &lt;= number of calls &lt;= max_invocations.  The defaults are 0 and infinite, respectively.  Out of order calls (o_o) are merely stub calls where min_invocations = max_invocations = 0.
+
+For mocked functions, all three types will return the atom "ok" by default.  There are a number of options for specifying a return value.
+<ul>
+<li>{ok,V} -- return V</li>
+<li>{throw,V} -- throws V</li>
+<li>{error,V} -- function calls error(V)</li>
+<li>{exit,V} -- function calls exit(V)</li>
+<li>{function,F} -- F must be a function with the same arity as the mocking function.  It will be passed the arguments that the function gets.  Any return value, throw, exit, or error will be returned to the caller of the mock.</li>
+</ul>
+
+For mocked tcp sockets, the default action is to do nothing.
+<ul>
+<li>{reply,Binary} -- sends the Binary to the socket,</li>
+<li>{reply,Function} -- Function/1 is passed the binary sent to the socket, the response must be a binary to send back to the connection.</li>
+<li>{close} -- closes the connection.</li>
+</ul>
+
+<h2>Testing</h2>
+Mocked functions will immediately throw an exception if they are called out of order (for strict) or too many times (for out of order or stubs with max_invocation set).  Too few calls and bad TCP exchange will be thrown as an exception when verify is called.
+
+<h1>Notes</h1>
+<ul>
+<li>Mocking features are singletons, so you cannot run mocked tests in parallel.  This is unavoidable due to the way that the module mocking unloads and loads the code for the mocked module</li>
+<li>You cannot mock only part of a module, you must mock everything.  If you mock A:b(), then A:c() will not exist unless you mock it too.</li>
+<li>erlymock_tcp will only throw when verify() is called</li>
+<li>Verify will pause for 100ms after the last message it receives.  This is to allow asynchronous processes and calls at least a slight window to complete.  The default timeout on verify() is 5 seconds, so if things are still coming in it can throw timeout.</li>
+<li>Look at the test cases, they provide good examples.  erlymock_tcp and erlymock can be mixed.</li>
+</ul>
+
