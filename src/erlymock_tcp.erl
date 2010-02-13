@@ -56,7 +56,7 @@ open(Options) when is_list(Options) ->
 %% No response is made on the socket.
 %% @end
 % --------------------------------------------------------------------
-strict(Socket,Verifier) when is_binary(Verifier) or is_function(Verifier)->
+strict(Socket,Verifier) when is_binary(Verifier) or is_function(Verifier) or is_list(Verifier)->
   strict(Socket,Verifier,[]).
 
 % --------------------------------------------------------------------
@@ -65,6 +65,8 @@ strict(Socket,Verifier) when is_binary(Verifier) or is_function(Verifier)->
 %% or causes the Verifier function to return true.
 %% @end
 % --------------------------------------------------------------------
+strict(Socket,Verifier, Options) when is_list(Verifier),is_list(Options)->
+  strict(Socket,list_to_binary(Verifier),Options);
 strict(Socket,Verifier, Options) when is_function(Verifier),is_list(Options)->
   erlymock:internal_strict({?TAG,Socket}, Verifier, make_options(Options));
 strict(Socket,Verifier, Options) when is_binary(Verifier),is_list(Options)->
@@ -77,7 +79,7 @@ strict(Socket,Verifier, Options) when is_binary(Verifier),is_list(Options)->
 %% order.  Alias for stub(..., [{max_invocations,1},{min_invocations,1}])
 %% @end
 % --------------------------------------------------------------------
-o_o(Socket,Verifier) when (is_binary(Verifier) or is_function(Verifier))->
+o_o(Socket,Verifier) when (is_binary(Verifier) or is_function(Verifier) or is_list(Verifier))->
   o_o(Socket,Verifier,[]).
 
 % --------------------------------------------------------------------
@@ -87,7 +89,7 @@ o_o(Socket,Verifier) when (is_binary(Verifier) or is_function(Verifier))->
 %% order.  Alias for stub(..., [{max_invocations,1},{min_invocations,1} | Options])
 %% @end
 % --------------------------------------------------------------------
-o_o(Socket,Verifier,Options) when (is_binary(Verifier) or is_function(Verifier)),is_list(Options)->
+o_o(Socket,Verifier,Options) when (is_binary(Verifier) or is_function(Verifier) or is_list(Verifier)),is_list(Options)->
   stub(Socket,Verifier,[{max_invocations,1},{min_invocations,1} | Options]).
 
 % --------------------------------------------------------------------
@@ -96,8 +98,8 @@ o_o(Socket,Verifier,Options) when (is_binary(Verifier) or is_function(Verifier))
 %% or causes the Verifier function to return true.
 %% @end
 % --------------------------------------------------------------------
-stub(Socket,Data) when (is_binary(Data) or is_function(Data))->
-  stub(Socket,Data,[]).
+stub(Socket,Verifier) when (is_binary(Verifier) or is_function(Verifier) or is_list(Verifier))->
+  stub(Socket,Verifier,[]).
 
 % --------------------------------------------------------------------
 %% @spec stub(Socket::client_socket(),Verifier::verifier(),[verification_option()]) -> ok
@@ -105,10 +107,12 @@ stub(Socket,Data) when (is_binary(Data) or is_function(Data))->
 %% or causes the Verifier function to return true.
 %% @end
 % --------------------------------------------------------------------
-stub(Socket,Data, Options) when is_function(Data), is_list(Options)->
-  erlymock:internal_stub({?TAG,Socket}, Data, make_options(Options));
-stub(Socket,Data, Options) when is_binary(Data), is_list(Options)->
-  erlymock:internal_stub({?TAG,Socket}, [Data], make_options(Options)).
+stub(Socket,Verifier, Options) when is_list(Verifier), is_list(Options)->
+  stub(Socket,list_to_binary(Verifier),Options);
+stub(Socket,Verifier, Options) when is_function(Verifier), is_list(Options)->
+  erlymock:internal_stub({?TAG,Socket}, Verifier, make_options(Options));
+stub(Socket,Verifier, Options) when is_binary(Verifier), is_list(Options)->
+  erlymock:internal_stub({?TAG,Socket}, [Verifier], make_options(Options)).
 
 
 % --------------------------------------------------------------------

@@ -31,7 +31,7 @@ invoke(Handle,Function, Args)  when is_record(Handle,expectations),is_list(Args)
   case invoke_strict(Handle,Function,Args) of
     not_found -> 
       case invoke_stub(Handle,Function,Args) of
-        not_found -> throw({erlymock,unexpected_invocation,[{mfa,Function,Args},{state,Handle}]});
+        not_found -> throw({erlymock,unexpected_invocation,[{Function,Args},{state,Handle}]});
         Any -> Any
       end;
     Any -> Any
@@ -66,7 +66,7 @@ match_func({Func,Pattern,Options}=Rec, CalledFunc, CalledArgs) when Func =:= Cal
     true when MaxInvocations >= Invocations -> 
       {true, {Func,Pattern, [{invocations,Invocations} | proplists:delete(invocations,Options)]}, return(Options,CalledArgs)};
     true -> 
-      throw({erlymock,too_many_invocations,[{mfa,CalledFunc,CalledArgs},{invocations,Invocations,MaxInvocations}]});
+      throw({erlymock,too_many_invocations,[{CalledFunc,CalledArgs},{invocations,Invocations,MaxInvocations}]});
     _ -> {false,Rec,undefined}
   end;
 match_func(Rec, _CalledFunc, _CalledArgs) ->
