@@ -14,7 +14,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 
--define(DEFAULT_OPTS, [{socket_options,[binary, {packet, 2}, {active, false}]}]).
+-define(DEFAULT_OPTS, [{socket_options,[binary, {packet, 2}, {active, false},{reuseaddr, true}]}]).
 -define(SERVER,?MODULE).
 -define(TAG,tcp_socket).
 
@@ -174,7 +174,7 @@ handle_call({erlymock_state,replay}, _From, #state{mock_side=ServerSocket}=State
   inet:setopts(ServerSocket, [{active,once}]),
   {reply,true,State#state{state=replay}};
 handle_call({erlymock_state,verify}, _From, State) ->
-  {reply,true,State#state{state=done}};
+  {reply,true,State#state{state=verify}};
 handle_call({halt},_From,State) ->
   {stop, normal, ok, State}.
 
@@ -201,12 +201,11 @@ handle_cast(_Msg, State) ->
 % --------------------------------------------------------------------
 handle_info({tcp,_,Data},#state{client_side=Socket,mock_side=MockSocket}=State) ->
   X=erlymock:internal_invocation_event({?TAG,Socket}, [Data]),
-  io:format("Got data ~p~nInvocation returned ~p~n", [Data,X]),
   
   case X of
     {ok,{reply,Reply}} when is_binary(Reply) -> gen_tcp:send(MockSocket, Reply);
     {ok,{close}} -> gen_tcp:close(MockSocket);
-    {ok,_Any} -> io:format("Invocation was ignored ~p~n",[_Any]);
+    {ok,_Any} -> ignore;
     Any -> erlymock:internal_error({erlymock_tcp_error, {data,Data}, Any})
   end,
   inet:setopts(MockSocket, [{active,once}]),
@@ -216,7 +215,6 @@ handle_info({tcp_closed,_}, State) ->
 handle_info({'EXIT',_,_}, State) ->
   {stop, normal, State};
 handle_info(_Info, State) ->
-  io:format("Received ~p~n",[_Info]),
   {noreply, State}.
 
 % --------------------------------------------------------------------
@@ -252,8 +250,8 @@ make_options(Options) ->
 
 wipe_tcp() ->
   receive
-    {tcp,_,_} = A -> io:format("wiped ~p~n",[A]),wipe_tcp();
-    {tcp_closed,_} =A  -> io:format("wiped ~p~n",[A]),wipe_tcp()
+    {tcp,_,_}      -> wipe_tcp();
+    {tcp_closed,_} -> wipe_tcp()
     after 0 -> ok
   end.
 
