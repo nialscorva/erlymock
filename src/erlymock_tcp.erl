@@ -8,7 +8,7 @@
 -behaviour(gen_server).
 
 % External exports
--export([open/0,open/1,o_o/2,o_o/3,strict/2,strict/3,stub/2,stub/3]).
+-export([open/0,open/1,o_o/2,o_o/3,strict/2,strict/3,stub/2,stub/3,wipe_tcp/0]).
 
 % gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -43,7 +43,8 @@ open() ->
 %% @end 
 % --------------------------------------------------------------------
 open(Options) when is_list(Options) ->
-  catch(gen_server:call(?SERVER,{reset})),  % make sure a stale instance isn't hanging around
+  catch(gen_server:call(?SERVER,{halt})),  % make sure a stale instance isn't hanging around
+  wipe_tcp(), % any leftover closes, etc
   {ok,Pid}=gen_server:start_link({local,?SERVER},?MODULE,[Options],[]),
   erlymock:internal_register(Pid),
   Socket=gen_server:call(Pid,{get_socket,self()}),
@@ -126,6 +127,7 @@ stub(Socket,Verifier, Options) when is_binary(Verifier), is_list(Options)->
 %% @end 
 % --------------------------------------------------------------------
 init([Options]) ->
+  process_flag(trap_exit,true),
   Self = self(),
   ListenPort=proplists:get_value(port,Options,0),
   spawn(fun() ->
@@ -173,7 +175,7 @@ handle_call({erlymock_state,replay}, _From, #state{mock_side=ServerSocket}=State
   {reply,true,State#state{state=replay}};
 handle_call({erlymock_state,verify}, _From, State) ->
   {reply,true,State#state{state=done}};
-handle_call({reset},_From,State) ->
+handle_call({halt},_From,State) ->
   {stop, normal, ok, State}.
 
 % --------------------------------------------------------------------
@@ -198,18 +200,23 @@ handle_cast(_Msg, State) ->
 %% @end
 % --------------------------------------------------------------------
 handle_info({tcp,_,Data},#state{client_side=Socket,mock_side=MockSocket}=State) ->
-  error_logger:error_report("Got data", [Data]),
-  case erlymock:internal_invocation_event({?TAG,Socket}, [Data]) of
+  X=erlymock:internal_invocation_event({?TAG,Socket}, [Data]),
+  io:format("Got data ~p~nInvocation returned ~p~n", [Data,X]),
+  
+  case X of
     {ok,{reply,Reply}} when is_binary(Reply) -> gen_tcp:send(MockSocket, Reply);
     {ok,{close}} -> gen_tcp:close(MockSocket);
-    {ok,_Any} -> ok;
+    {ok,_Any} -> io:format("Invocation was ignored ~p~n",[_Any]);
     Any -> erlymock:internal_error({erlymock_tcp_error, {data,Data}, Any})
   end,
   inet:setopts(MockSocket, [{active,once}]),
   {noreply, State};
 handle_info({tcp_closed,_}, State) ->
   {stop, normal, State};
+handle_info({'EXIT',_,_}, State) ->
+  {stop, normal, State};
 handle_info(_Info, State) ->
+  io:format("Received ~p~n",[_Info]),
   {noreply, State}.
 
 % --------------------------------------------------------------------
@@ -234,12 +241,21 @@ code_change(_OldVsn, State, _Extra) ->
 
 make_options(Options) ->
   lists:foldl(fun({reply, Val},Acc) when is_binary(Val) -> [{return,{reply,Val}} | Acc];
+                 ({reply, Val},Acc) when is_list(Val) -> [{return,{reply,list_to_binary(Val)}} | Acc];
              (close,Acc) -> [{return, {close}} | Acc];
              ({close,true},Acc) -> [{return, {close}} | Acc ];
              ({max_invocations,D} = A,Acc) when is_number(D) -> [A | Acc];
              ({min_invocations,D} = A,Acc) when is_number(D) -> [A | Acc];
              (Any,_) -> throw({erlymock_invalid_option, Any})
             end, [], Options).
+
+
+wipe_tcp() ->
+  receive
+    {tcp,_,_} = A -> io:format("wiped ~p~n",[A]),wipe_tcp();
+    {tcp_closed,_} =A  -> io:format("wiped ~p~n",[A]),wipe_tcp()
+    after 0 -> ok
+  end.
 
 %% @type verification_option() = close | {close,true} 
 %%                             | {max_invocations, Count::integer()} 

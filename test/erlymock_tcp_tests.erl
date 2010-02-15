@@ -65,8 +65,40 @@ reply_to_packet_test() ->
     Any -> {received_incorrect_data,Any}
     after 500 -> reply_timeout
   end,
-  ?assert(RV).
-                             
+  ?assert(RV),
+  erlymock:verify().
+
+shutdown_on_verify_test() ->
+  erlymock:start(),
+  {ok,Socket}=erlymock_tcp:open(),
+  erlymock_tcp:strict(Socket,<<"test packet">>),
+  erlymock:replay(),
+  gen_tcp:send(Socket,<<"test packet">>),
+  erlymock:verify(),
+  ?assertMatch(undefined,whereis(erlymock)),
+  ?assertMatch(undefined,whereis(erlymock_tcp)).
+
+
+threeway_conversation_test() ->
+  erlymock:start(),
+  {ok,Socket}=erlymock_tcp:open(),
+  erlymock_tcp:strict(Socket,<<"test packet">>,[{reply,<<"reply">>}]),
+  erlymock_tcp:strict(Socket,<<"test packet2">>),
+  erlymock:replay(),
+  inet:setopts(Socket, [{active,true}]),
+ 
+  gen_tcp:send(Socket,<<"test packet">>),
+  % cannot assert inside of receive without problems, it seems
+  RV=receive
+    {tcp,_,<<"reply">>} -> gen_tcp:send(Socket,<<"test packet2">>), true;
+    {tcp,_,Data} -> {received_incorrect_data,Data};
+    Any -> {received_incorrect_data,Any}
+    after 500 -> reply_timeout
+  end,
+  ?assert(RV),
+  erlymock:verify().
+
+
 close_connection_test() ->
   erlymock:start(),
   {ok,Socket}=erlymock_tcp:open(),

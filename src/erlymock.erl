@@ -115,7 +115,9 @@ verify() ->
 %% @end
 % --------------------------------------------------------------------
 verify(Timeout) ->
-  dispatch(gen_server:call(?SERVER,{verify},Timeout)).
+  RV=dispatch(gen_server:call(?SERVER,{verify},Timeout)),
+  timer:sleep(10), % hack, lets client apps receive the process terminated messages
+  RV.
 
 % --------------------------------------------------------------------
 %% @spec invocation_event(MFA,Args) -> RV::term()
