@@ -31,6 +31,7 @@
 % --------------------------------------------------------------------
 start() ->
   catch(gen_server:call(?SERVER,{reset})),  % make sure a stail instance isn't hanging around
+  timer:sleep(1), % yeild for the server to shutdown
   gen_server:start_link({local,?SERVER},?MODULE,[],[]).
 
 % --------------------------------------------------------------------
