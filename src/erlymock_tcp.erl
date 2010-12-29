@@ -45,14 +45,34 @@ open(Options) when is_list(Options) ->
 
 rx(Socket) -> rx(Socket,0).
 
+% --------------------------------------------------------------------
+%% @spec rx(Socket,Len) -> Bin::binary()
+%% @doc Receives a binary from the socket.  Will throw an error if the
+%% socket is in a bad state, doesn't receive, or other error happens.
+%% Len is optional for sockets with {packet,n} defined or if you want
+%% all available bytes.
+%% @end 
+% --------------------------------------------------------------------
 rx(Socket,Len) when is_port(Socket) ->
   {ok,Bin}=gen_tcp:recv(Socket,Len),
   Bin.
 
-tx(Socket,Bin) ->
-  gen_tcp:send(Socket,Bin).
+% --------------------------------------------------------------------
+%% @spec tx(Socket,Msg) -> ok
+%% @doc Sends an iolist to the socket.
+%% @end 
+% --------------------------------------------------------------------
+tx(Socket,Msg) when is_port(Socket)->
+  gen_tcp:send(Socket,Msg).
 
+% --------------------------------------------------------------------
+%% @spec close(Socket) -> ok
+%% @doc Closes the socket and gives the other end a chance to see the
+%% error before moving on.  Will also do mock validation in the future.
+%% @end 
+% --------------------------------------------------------------------
 close(Socket) when is_port(Socket) ->
-  gen_tcp:close(Socket).
+  ok=gen_tcp:close(Socket),
+  timer:sleep(1). % yield so that the process on the other end will get a close message/signal
 
 
