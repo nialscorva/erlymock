@@ -1,0 +1,12 @@
+{application, erlymock,
+ [
+  {description, ""},
+  {vsn, "1"},
+  {modules, [erlymock_recorder, erlymock_tcp, erlymock]},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {env, []}
+ ]}.

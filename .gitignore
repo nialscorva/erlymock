@@ -1,6 +1,7 @@
 .project
 .settings/
 doc/
-ebin/
+*.beam
+.eunit
 logs
 erl_crash.dump
