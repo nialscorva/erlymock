@@ -347,9 +347,10 @@ reply_to_verifier(State,Problems) ->
 %% @end
 % --------------------------------------------------------------------
 terminate(_Reason, #state{module_set=ModuleSet}) ->
-  lists:map(fun(Mod) ->
+  lists:foreach(fun(Mod) ->
                  code:purge(Mod),
-                 code:delete(Mod)
+                 code:delete(Mod),
+		 catch cover:compile(Mod)
             end, sets:to_list(ModuleSet)).
 
 % --------------------------------------------------------------------
